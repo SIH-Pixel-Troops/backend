@@ -12,7 +12,10 @@
   "dependencies": {
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
     "express": "^5.1.0",
-    "geolib": "^3.3.4"
+    "geolib": "^3.3.4",
+    "helmet": "^8.1.0",
+    "web3": "^4.16.0"
   }
 }

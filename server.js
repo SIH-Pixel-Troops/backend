@@ -48,7 +48,7 @@ const account = web3.eth.accounts.privateKeyToAccount(process.env.PRIVATE_KEY);
 web3.eth.accounts.wallet.add(account);
 web3.eth.defaultAccount = account.address;
 
-console.log("💰 Using wallet address:", account.address);
+console.log("Current Wallet Address:", account.address);
 
 
 const app = express();
@@ -59,8 +59,8 @@ app.use(cors());
 // Root Route
 // =====================
 app.get("/", (req, res) => {
-  console.log("✅ Health check received");
-  res.send("🚀 Tourist Safety Backend is running");
+  console.log("Health check received");
+  res.send("SafarSuraksha Backend is now running");
 });
 
 // =====================
@@ -69,10 +69,10 @@ app.get("/", (req, res) => {
 app.post("/api/location", (req, res) => {
   const { touristId, latitude, longitude } = req.body;
 
-  console.log(`📍 Location update from ${touristId}:`, { latitude, longitude });
+  console.log(`Location update from ${touristId}:`, { latitude, longitude });
 
   if (!touristId || latitude === undefined || longitude === undefined) {
-    console.warn("⚠️ Missing touristId or coordinates in /api/location");
+    console.warn("Missing touristId or coordinates in /api/location");
     return res.status(400).json({ error: "Missing touristId or coordinates" });
   }
 
@@ -86,11 +86,11 @@ app.post("/api/location", (req, res) => {
     );
 
     if (inside) {
-      console.log(`🚨 ${touristId} entered zone: ${zone.name}`);
+      console.log(`${touristId} entered zone: ${zone.name}`);
       alerts.push({
         zoneId: zone.id,
         zoneName: zone.name,
-        message: `⚠️ Tourist ${touristId} entered ${zone.name}`,
+        message: `Tourist ${touristId} entered ${zone.name}`,
       });
     }
   });
@@ -109,16 +109,16 @@ app.post("/api/location", (req, res) => {
 app.post("/api/panic", (req, res) => {
   const { touristId, latitude, longitude } = req.body;
 
-  console.log(`🚨 PANIC BUTTON PRESSED:`, req.body);
+  console.log(`PANIC BUTTON PRESSED:`, req.body);
 
   if (!touristId || latitude === undefined || longitude === undefined) {
-    console.warn("⚠️ Missing touristId or coordinates in /api/panic");
+    console.warn("Missing touristId or coordinates in /api/panic");
     return res.status(400).json({ error: "Missing touristId or coordinates" });
   }
 
   res.json({
     status: "success",
-    message: "🚨 Panic alert received. Authorities notified (mock).",
+    message: "Panic alert received. Authorities notified (mock).",
     data: { touristId, latitude, longitude },
   });
 });
@@ -131,7 +131,7 @@ app.post("/api/generate-id", async (req, res) => {
     const { touristId, name, tripStart, tripEnd } = req.body;
 
     if (!touristId || !name) {
-      console.warn("⚠️ Missing touristId or name in /api/generate-id");
+      console.warn("Missing touristId or name in /api/generate-id");
       return res.status(400).json({ error: "Missing touristId or name" });
     }
 
@@ -139,14 +139,14 @@ app.post("/api/generate-id", async (req, res) => {
     const dataString = `${touristId}|${name}|${tripStart}|${tripEnd}`;
     const tripHash = crypto.createHash("sha256").update(dataString).digest("hex");
 
-    console.log(`🔗 Registering tourist ${touristId} on blockchain...`);
+    console.log(`Registering tourist ${touristId} on blockchain...`);
 
     const tx = contract.methods.registerTourist(touristId, name, tripHash);
     const gas = await tx.estimateGas({ from: account.address });
 
     const receipt = await tx.send({ from: account.address, gas });
 
-    console.log(`✅ Tourist registered! TxHash: ${receipt.transactionHash}`);
+    console.log(`Tourist registered! Hashed: ${receipt.transactionHash}`);
 
     res.json({
       touristId,
@@ -165,7 +165,7 @@ app.post("/api/generate-id", async (req, res) => {
       }),
     });
   } catch (err) {
-    console.error("❌ Blockchain Error:", err);
+    console.error("Blockchain Error:", err);
     res.status(500).json({ error: "Blockchain write failed", details: err.message });
   }
 });
@@ -175,5 +175,5 @@ app.post("/api/generate-id", async (req, res) => {
 // =====================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });

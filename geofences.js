@@ -12,4 +12,7 @@ module.exports = [
     center: { latitude: 26.8467, longitude: 80.9462 }, // Example: Lucknow
     radius: 2000,
   },
+  {
+    
+  }
 ];

@@ -169,9 +169,14 @@ app.post("/api/generate-id", async (req, res) => {
 
     const tx = contract.methods.registerTourist(touristId, name, tripHash);
     const gas = await tx.estimateGas({ from: account.address });
+    const gasPrice = await web3.eth.getGasPrice();
 
-    const receipt = await tx.send({ from: account.address, gas });
-
+    const receipt = await tx.send({
+      from: account.address,
+      gas,
+      gasPrice: BigInt(gasPrice) * 2n // 🔥 force higher gas
+    });
+    
     res.json({
       touristId,
       name,

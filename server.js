@@ -157,16 +157,16 @@ app.post("/api/panic", (req, res) => {
 // Blockchain Registration API
 // =====================
 app.post("/api/generate-id", async (req, res) => {
+  const { touristId, name, tripStart, tripEnd } = req.body;
+
+  if (!touristId || !name) {
+    return res.status(400).json({ error: "Missing touristId or name" });
+  }
+
+  const dataString = `${touristId}|${name}|${tripStart}|${tripEnd}`;
+  const tripHash = crypto.createHash("sha256").update(dataString).digest("hex");
+
   try {
-    const { touristId, name, tripStart, tripEnd } = req.body;
-
-    if (!touristId || !name) {
-      return res.status(400).json({ error: "Missing touristId or name" });
-    }
-
-    const dataString = `${touristId}|${name}|${tripStart}|${tripEnd}`;
-    const tripHash = crypto.createHash("sha256").update(dataString).digest("hex");
-
     const tx = contract.methods.registerTourist(touristId, name, tripHash);
     const gas = await tx.estimateGas({ from: account.address });
     const gasPrice = await web3.eth.getGasPrice();
@@ -174,26 +174,38 @@ app.post("/api/generate-id", async (req, res) => {
     const receipt = await tx.send({
       from: account.address,
       gas,
-      gasPrice: BigInt(gasPrice) * 2n // 🔥 force higher gas
+      gasPrice: BigInt(gasPrice) * 2n
     });
-    
-    res.json({
+
+    // ✅ Blockchain success
+    return res.json({
       touristId,
       name,
       tripStart,
       tripEnd,
       blockchainProof: tripHash,
       transactionHash: receipt.transactionHash,
-      explorerUrl: `https://mumbai.polygonscan.com/tx/${receipt.transactionHash}`
+      explorerUrl: `https://mumbai.polygonscan.com/tx/${receipt.transactionHash}`,
+      mode: "blockchain"
     });
+
   } catch (err) {
-    console.error("Blockchain error:", err);
-    res.status(500).json({
-      error: "Blockchain write failed",
-      details: err.message
+    // 🔥 FALLBACK MODE (THIS IS THE KEY)
+    console.warn("Blockchain failed, falling back:", err.message);
+
+    return res.json({
+      touristId,
+      name,
+      tripStart,
+      tripEnd,
+      blockchainProof: tripHash,
+      transactionHash: null,
+      explorerUrl: null,
+      mode: "fallback"
     });
   }
 });
+
 
 // =====================
 // Global Error Handler

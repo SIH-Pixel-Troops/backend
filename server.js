@@ -6,7 +6,7 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const geolib = require("geolib");
 const crypto = require("crypto");
-require("dotenv").config(); // <-- To securely load env vars
+require("dotenv").config();
 
 const geoFences = require("./geofences");
 const { Web3 } = require("web3");
@@ -14,9 +14,9 @@ const { Web3 } = require("web3");
 // =====================
 // Blockchain Setup
 // =====================
-const web3 = new Web3(process.env.ALCHEMY_RPC); // e.g., "https://polygon-mumbai.g.alchemy.com/v2/your-key"
+const web3 = new Web3(process.env.ALCHEMY_RPC);
 
-const contractABI = [ 
+const contractABI = [
   {
     "anonymous": false,
     "inputs": [
@@ -43,110 +43,134 @@ const contractABI = [
 const contractAddress = process.env.CONTRACT_ADDRESS;
 const contract = new web3.eth.Contract(contractABI, contractAddress);
 
-// Load private key for signing
 const account = web3.eth.accounts.privateKeyToAccount(process.env.PRIVATE_KEY);
 web3.eth.accounts.wallet.add(account);
 web3.eth.defaultAccount = account.address;
 
-console.log("Current Wallet Address:", account.address);
+console.log("Wallet Address:", account.address);
 
-
+// =====================
+// App Setup
+// =====================
 const app = express();
 app.use(bodyParser.json());
-app.use(cors());
+app.use(cors({ origin: "*" }));
 
 // =====================
-// Root Route
+// Health Check
 // =====================
 app.get("/", (req, res) => {
-  console.log("Health check received");
-  res.send("SafarSuraksha Backend is now running");
+  res.json({
+    status: "ok",
+    service: "SafarSuraksha Backend",
+    uptime: process.uptime()
+  });
 });
 
 // =====================
-// Geo-fencing API
+// Location API (SAFE)
 // =====================
 app.post("/api/location", (req, res) => {
-  const { touristId, latitude, longitude } = req.body;
+  try {
+    const { touristId, latitude, longitude } = req.body;
 
-  console.log(`Location update from ${touristId}:`, { latitude, longitude });
+    const lat = Number(latitude);
+    const lon = Number(longitude);
 
-  if (!touristId || latitude === undefined || longitude === undefined) {
-    console.warn("Missing touristId or coordinates in /api/location");
-    return res.status(400).json({ error: "Missing touristId or coordinates" });
-  }
-
-  let alerts = [];
-
-  geoFences.forEach((zone) => {
-    const inside = geolib.isPointWithinRadius(
-      { latitude, longitude },
-      zone.center,
-      zone.radius
-    );
-
-    if (inside) {
-      console.log(`${touristId} entered zone: ${zone.name}`);
-      alerts.push({
-        zoneId: zone.id,
-        zoneName: zone.name,
-        message: `Tourist ${touristId} entered ${zone.name}`,
+    if (!touristId || Number.isNaN(lat) || Number.isNaN(lon)) {
+      console.warn("Invalid location payload:", req.body);
+      return res.status(400).json({
+        error: "Invalid or missing coordinates",
+        received: req.body
       });
     }
-  });
 
-  res.json({
-    touristId,
-    location: { latitude, longitude },
-    alerts,
-    safetyScore: alerts.length > 0 ? 50 : 90, // Mock scoring
-  });
+    console.log("Location update:", { touristId, lat, lon });
+
+    const alerts = [];
+
+    geoFences.forEach((zone) => {
+      // Defensive geofence validation
+      if (
+        !zone.center ||
+        typeof zone.center.latitude !== "number" ||
+        typeof zone.center.longitude !== "number" ||
+        typeof zone.radius !== "number"
+      ) {
+        console.warn("Skipping invalid geofence:", zone);
+        return;
+      }
+
+      const inside = geolib.isPointWithinRadius(
+        { latitude: lat, longitude: lon },
+        zone.center,
+        zone.radius
+      );
+
+      if (inside) {
+        alerts.push({
+          zoneId: zone.id,
+          zoneName: zone.name,
+          message: `Entered ${zone.name}`
+        });
+      }
+    });
+
+    res.json({
+      touristId,
+      location: { latitude: lat, longitude: lon },
+      alerts,
+      safetyScore: alerts.length ? 50 : 90
+    });
+  } catch (err) {
+    console.error("Location API error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // =====================
-// Panic Button API
+// Panic API (SAFE)
 // =====================
 app.post("/api/panic", (req, res) => {
   const { touristId, latitude, longitude } = req.body;
 
-  console.log(`PANIC BUTTON PRESSED:`, req.body);
+  const lat = Number(latitude);
+  const lon = Number(longitude);
 
-  if (!touristId || latitude === undefined || longitude === undefined) {
-    console.warn("Missing touristId or coordinates in /api/panic");
-    return res.status(400).json({ error: "Missing touristId or coordinates" });
+  if (!touristId || Number.isNaN(lat) || Number.isNaN(lon)) {
+    return res.status(400).json({
+      error: "Invalid or missing coordinates",
+      received: req.body
+    });
   }
+
+  console.log("PANIC ALERT:", { touristId, lat, lon });
 
   res.json({
     status: "success",
-    message: "Panic alert received. Authorities notified (mock).",
-    data: { touristId, latitude, longitude },
+    message: "Panic alert received (mock)",
+    data: { touristId, latitude: lat, longitude: lon }
   });
 });
 
 // =====================
-// Blockchain ID + QR Generation API
+// Blockchain Registration API
 // =====================
 app.post("/api/generate-id", async (req, res) => {
   try {
     const { touristId, name, tripStart, tripEnd } = req.body;
 
     if (!touristId || !name) {
-      console.warn("Missing touristId or name in /api/generate-id");
       return res.status(400).json({ error: "Missing touristId or name" });
     }
 
-    // Generate trip hash (off-chain for uniqueness)
     const dataString = `${touristId}|${name}|${tripStart}|${tripEnd}`;
     const tripHash = crypto.createHash("sha256").update(dataString).digest("hex");
-
-    console.log(`Registering tourist ${touristId} on blockchain...`);
 
     const tx = contract.methods.registerTourist(touristId, name, tripHash);
     const gas = await tx.estimateGas({ from: account.address });
 
     const receipt = await tx.send({ from: account.address, gas });
-
-    console.log(`Tourist registered! Hashed: ${receipt.transactionHash}`);
 
     res.json({
       touristId,
@@ -155,19 +179,23 @@ app.post("/api/generate-id", async (req, res) => {
       tripEnd,
       blockchainProof: tripHash,
       transactionHash: receipt.transactionHash,
-      explorerUrl: `https://mumbai.polygonscan.com/tx/${receipt.transactionHash}`, // 👈 Now included
-      qrPayload: JSON.stringify({
-        touristId,
-        name,
-        tripStart,
-        tripEnd,
-        txHash: receipt.transactionHash,
-      }),
+      explorerUrl: `https://mumbai.polygonscan.com/tx/${receipt.transactionHash}`
     });
   } catch (err) {
-    console.error("Blockchain Error:", err);
-    res.status(500).json({ error: "Blockchain write failed", details: err.message });
+    console.error("Blockchain error:", err);
+    res.status(500).json({
+      error: "Blockchain write failed",
+      details: err.message
+    });
   }
+});
+
+// =====================
+// Global Error Handler
+// =====================
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err);
+  res.status(500).json({ error: "Internal server error" });
 });
 
 // =====================
@@ -175,5 +203,5 @@ app.post("/api/generate-id", async (req, res) => {
 // =====================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });

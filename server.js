@@ -179,10 +179,16 @@ app.post("/api/generate-id", async (req, res) => {
     const gas = await tx.estimateGas({ from: account.address });
     const gasPrice = await web3.eth.getGasPrice();
 
+    const nonce = await web3.eth.getTransactionCount(
+      account.address,
+      "pending"
+    );
+
     const receipt = await tx.send({
       from: account.address,
       gas,
-      gasPrice: BigInt(gasPrice) * 2n
+      gasPrice: BigInt(gasPrice) * 5n,
+      nonce
     });
 
     res.json({

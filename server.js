@@ -171,6 +171,12 @@ app.post("/api/panic", (req, res) => {
 app.post("/api/generate-id", async (req, res) => {
   const { touristId, name, tripStart, tripEnd } = req.body;
 
+  if (!touristId || !name) {
+    return res.status(400).json({
+      error: "Missing touristId or name"
+    });
+  }
+
   const dataString = `${touristId}|${name}|${tripStart}|${tripEnd}`;
   const tripHash = crypto.createHash("sha256").update(dataString).digest("hex");
 

@@ -200,7 +200,7 @@ app.post("/api/generate-id", async (req, res) => {
     });
 
   } catch (err) {
-    console.warn("Blockchain failed, fallback");
+    console.warn("Blockchain failed", err.message);
 
     res.json({
       touristId,
@@ -209,6 +209,9 @@ app.post("/api/generate-id", async (req, res) => {
       transactionHash: null,
       mode: "fallback"
     });
+
+    const balance = await web3.eth.getBalance(account.address);
+    console.log("Wallet balance:", web3.utils.fromWei(balance, "ether"));
   }
 });
 
